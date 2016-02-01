@@ -25,13 +25,20 @@ class Hamster(object):
         raise NotImplementedError
 
     def willDie(self):
-        prob = math.exp(-0.003 * math.exp((self.age - 25) / 10))
-        if random.random() < prob:
+        # Using a Weibull Distribution with l = 100, k = 15.
+        # Life expectancy ~100
+        l = 100
+        k = 15
+        t = self.age
+        prob = (k / l) * ((t / l) ** (k - 1)) * math.exp(-((t / l) ** k))
+
+        result = random.random()
+        if result < prob:
             return True
-        elif random.random() >= prob:
+        elif result >= prob:
             return False
 
-    def age(self):
+    def ageStep(self):
         self.age += 1
 
     def breed(self, neighbors):
@@ -48,6 +55,10 @@ class Hamster(object):
 
 class RacistHam(Hamster):
     def posNeighbors(self, neighbors):
+        # If no neighbors handling:
+        if len(neighbors) == 0:
+            return self.position
+
         colorposX = [(hammy.position[0], (self.darkness - hammy.darkness) ** 2)
                      for hammy in neighbors]
         colorposY = [(hammy.position[1], (self. darkness - hammy.darkness) ** 2)
@@ -80,7 +91,8 @@ class RacistHam(Hamster):
         x = random.uniform(-5, 5)
         y = random.uniform(-5, 5)
 
-        self.position = (posNeighbors[0] + x, posNeighbors[1] + y)
+        self.position = ((self.position[0] + posNeighbors[0]) / 2 + x,
+                         (self.position[1] + posNeighbors[1]) / 2 + y)
 
     def breed(self, neighbors):
         '''
@@ -91,7 +103,7 @@ class RacistHam(Hamster):
         random.shuffle(neighbors)
         for hammy in neighbors:
             avgDarkness = (self.darkness + hammy.darkness) / 2
-            avgAge = (self.age + hammy.age)/2
+            avgAge = max([(self.age + hammy.age)/2, 1])
             prob = 1 - (((self.darkness - hammy.darkness) ** 2) / avgDarkness) \
                 - (((self.age - hammy.age) ** 2) / avgAge)
 
@@ -124,22 +136,19 @@ class Field(object):
                     (hamster.position[1] - hammy.position[1]) ** 2) ** 0.5
             if dist <= hamster.neighborRadius and hammy != hamster:
                 neighbors.append(hammy)
+        return neighbors
 
     def updateField(self):
         # Kill the oldies
-        oldhamsters = copy.copy(self.hamsters)
-        for hammy in oldhamsters:
-            if hammy.willDie():
-                print("DEBUG KILL")
-                self.hamsters.remove(hammy)
-                # RIP
+        filter(lambda hammy: not hammy.willDie(), self.hamsters)
+        # RIP
 
         for hammy in self.hamsters:
             neighbors = self.getNeighbors(hammy)
 
             # Breed them <3
             baby = hammy.breed(neighbors)
-            if baby is not None:
+            if baby is not False:
                 self.hamsters.append(baby)
 
             # Move them
@@ -156,7 +165,7 @@ class Field(object):
                 hammy.position = (hammy.position[0], 0)
 
             # Age them
-            hammy.age()
+            hammy.ageStep()
 
             # Make them horny again
             hammy.bred = False
@@ -177,12 +186,13 @@ def main():
     # Values
     trials = 1000
     size = (600, 500)
-    initHamsters = getInitialHamsters(400, size, RacistHam)
+    initHamsters = getInitialHamsters(10, size, RacistHam)
     theField = Field(initHamsters, size)
 
     # Run Loop
     for i in range(trials):
         theField.updateField()
+        print(len(theField.hamsters))
 
 
 if __name__ == "__main__":
