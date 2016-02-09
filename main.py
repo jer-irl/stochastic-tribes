@@ -2,7 +2,6 @@
 
 import random
 import math
-import copy
 
 
 class Hamster(object):
@@ -11,12 +10,13 @@ class Hamster(object):
     darkness is a float from 0 (white) and 1 (black)
     '''
 
-    def __init__(self, position, darkness, neighborRadius, bred):
+    def __init__(self, position, darkness, neighborRadius):
         self.position = position
         self.darkness = darkness
         self.neighborRadius = neighborRadius
         self.age = 0
-        self.bred = False
+        self.bred = True
+        self.name = self.getName()
 
     def posNeighbors(self, neighbors):
         raise NotImplementedError
@@ -34,6 +34,7 @@ class Hamster(object):
 
         result = random.random()
         if result < prob:
+            print(self.name, "died at the ripe old age of", self.age)
             return True
         elif result >= prob:
             return False
@@ -52,6 +53,10 @@ class Hamster(object):
         babyY = (self.position[1] + wife.position[1]) / 2
         return (babyX, babyY)
 
+    def getName(self):
+        listNames = [name.strip('\n') for name in open("names.txt", mode='r')]
+        return random.choice(listNames)
+
 
 class RacistHam(Hamster):
     def posNeighbors(self, neighbors):
@@ -68,6 +73,8 @@ class RacistHam(Hamster):
         weightSum = 0
         for hammy in colorposX:
             weightSum += hammy[1]
+        if weightSum < 0.01:
+            weightSum = 0.01
 
         # Calculating X
         Xpos = 0
@@ -112,8 +119,10 @@ class RacistHam(Hamster):
                 babyPos = self.getBabyPos(hammy)
                 darkness = (self.darkness + hammy.darkness) / 2
                 neighborRadius = self.neighborRadius
-                bred = False
-                baby = RacistHam(babyPos, darkness, neighborRadius, bred)
+                self.bred = True
+                baby = RacistHam(babyPos, darkness, neighborRadius)
+                print(self.name, "and", hammy.name, "gave birth to the",
+                      "beautiful baby", baby.name)
                 return baby
 
         return False
@@ -138,7 +147,7 @@ class Field(object):
                 neighbors.append(hammy)
         return neighbors
 
-    def updateField(self):
+    def updateField(self, i):
         # Kill the oldies
         filter(lambda hammy: not hammy.willDie(), self.hamsters)
         # RIP
@@ -170,6 +179,13 @@ class Field(object):
             # Make them horny again
             hammy.bred = False
 
+        # Print Status
+        print()
+        print("Good work fam!  We completed round", i + 1)
+        print("There are currently", len(self.hamsters), "hamsters abound")
+        print()
+        print()
+
 
 def getInitialHamsters(number, size, HamClass):
     hamsters = []
@@ -177,22 +193,33 @@ def getInitialHamsters(number, size, HamClass):
         pos = (random.uniform(0, size[0]), random.uniform(0, size[1]))
         darkness = random.random()
         neighborRadius = 10
-        hamsters.append(HamClass(pos, darkness, neighborRadius, False))
+        hamsters.append(HamClass(pos, darkness, neighborRadius))
 
     return hamsters
 
 
+def welcome():
+    print()
+    print("Welcome to the Hamster simulator!")
+    print()
+    with open('ham_art.txt') as ham:
+        for line in ham:
+            print(line.strip('\n'))
+
+
 def main():
+    # Welcome
+    welcome()
+
     # Values
-    trials = 1000
+    trials = 100
     size = (600, 500)
     initHamsters = getInitialHamsters(10, size, RacistHam)
     theField = Field(initHamsters, size)
 
     # Run Loop
     for i in range(trials):
-        theField.updateField()
-        print(len(theField.hamsters))
+        theField.updateField(i)
 
 
 if __name__ == "__main__":
