@@ -2,6 +2,8 @@
 
 import random
 import math
+import tkinter as tk
+import threading
 
 
 class Hamster(object):
@@ -134,9 +136,10 @@ class Field(object):
     self.size is a tuple describing the size of the playground
     '''
 
-    def __init__(self, hamsters, size):
+    def __init__(self, hamsters, size, doGraphics):
         self.size = size
         self.hamsters = hamsters
+        self.doGraphics = doGraphics
 
     def getNeighbors(self, hamster):
         neighbors = []
@@ -146,6 +149,28 @@ class Field(object):
             if dist <= hamster.neighborRadius and hammy != hamster:
                 neighbors.append(hammy)
         return neighbors
+
+    def showHamsters(self):
+        # Clear Window
+        theCanvas.delete('all')
+        '''
+        theCanvas = tk.Canvas(self.theWindow, width=self.size[0],
+                                   height=self.size[1])
+                                   '''
+
+        # Do Hamsters
+        for hamster in self.hamsters:
+            color = hex(int(hamster.darkness * 255))
+            colorstring = '#' + 3*color.split('x')[-1]
+            print(colorstring)
+            hamster.rep = theCanvas.create_oval(int(hamster.position[0]),
+                                                int(hamster.position[1]),
+                                                int(hamster.position[0] + 3),
+                                                int(hamster.position[1] + 3),
+                                                color=colorstring)
+# fill=colorstring)
+
+        theWindow.update()
 
     def updateField(self, i):
         # Kill the oldies
@@ -179,6 +204,10 @@ class Field(object):
             # Make them breedable again
             hammy.bred = False
 
+        # Show Hamsters
+        if self.doGraphics:
+            self.showHamsters()
+
         # Print Status
         print()
         print("Good work fam!  We completed round", i + 1)
@@ -198,6 +227,25 @@ def getInitialHamsters(number, size, HamClass):
     return hamsters
 
 
+def isYes(input):
+    input = input.lower()
+    if input in ['y', 'yes', 'ye', 'es']:
+        return True
+    elif input in ['n', 'no', 'o']:
+        return False
+    else:
+        return None
+
+
+def isNo(input):
+    if isYes(input):
+        return False
+    elif isYes(input) == False:
+        return True
+    elif isYes(input) == None:
+        return None
+
+
 def welcome():
     print()
     print("Welcome to the Hamster simulator!")
@@ -205,21 +253,53 @@ def welcome():
     with open('ham_art.txt') as ham:
         for line in ham:
             print(line.strip('\n'))
+    print()
+
+
+def runSimulation(trials):
+    for i in range(trials):
+        theField.updateField(i)
 
 
 def main():
     # Welcome
     welcome()
+    resp = input('Would you like a graphical simulation? (y/n): ')
+    doGraphics = True if isYes(resp) else False
 
     # Values
     trials = 100
     size = (600, 500)
     initHamsters = getInitialHamsters(10, size, RacistHam)
-    theField = Field(initHamsters, size)
+    global theField
+    theField = Field(initHamsters, size, doGraphics)
+
+    # Initialize Graphics
+    if doGraphics:
+        try:
+            global theWindow
+            theWindow = tk.Tk()
+            geom = str(size[0]) + 'x' + str(size[1])
+            theWindow.geometry(geom)
+            theWindow.title('Simulation')
+            global theCanvas
+            theCanvas = tk.Canvas(theWindow, width=size[0], height=size[1])
+            theCanvas.pack()
+
+        except:
+            print('There was an error with the graphics module.  Confirm \
+                    that you have X, Tk, and Tkinter installed.')
+            raise
+
+    else:
+        print('No graphics')
 
     # Run Loop
-    for i in range(trials):
-        theField.updateField(i)
+    simThread = threading.Thread(target=runSimulation(trials))
+    simThread.start()
+
+    if doGraphics:
+        theWindow.mainloop()
 
 
 if __name__ == "__main__":
