@@ -21,8 +21,9 @@ class Hamster(object):
         self.age = 0
         self.bred = True
         self.name = self.getName()
+        self.angle = random.uniform(0, 2 * math.pi)
 
-    def posNeighbors(self, neighbors):
+    def posAngNeighbors(self, neighbors):
         raise NotImplementedError
 
     def move(self, position):
@@ -68,43 +69,62 @@ class Hamster(object):
 
 
 class RacistHam(Hamster):
-    def posNeighbors(self, neighbors):
+    def posAngNeighbors(self, neighbors):
         # If no neighbors handling:
         if len(neighbors) == 0:
-            return self.position
+            return (self.position[0], self.position[1], self.angle)
 
-        # (x, y, weight difference)
-        colorPos = [(hammy.position[0], hammy.position[1],
-                     1.0 * (1 - (abs(self.darkness - hammy.darkness))) +
+        # (x, y, angle, weight difference)
+        colorPos = [(hammy.position[0], hammy.position[1], hammy.angle,
+                     3.0 * (1 - (abs(self.darkness - hammy.darkness))) +
                      1.5 * (self.neighborRadius - self.distTo(hammy)))
                     for hammy in neighbors]
 
         # Determining sum of weights
-        weightSum = sum([hammy[2] for hammy in colorPos])
+        weightSum = sum([hammy[3] for hammy in colorPos])
 
         # Calculate position
-        pos = (sum([hammy[0] * hammy[2] for hammy in colorPos]) / weightSum,
-               sum([hammy[1] * hammy[2] for hammy in colorPos]) / weightSum)
+        posAng = (sum([hammy[0] * hammy[3] for hammy in colorPos]) / weightSum,
+                  sum([hammy[1] * hammy[3] for hammy in colorPos]) / weightSum,
+                  sum([hammy[2] * hammy[3] for hammy in colorPos]) / weightSum)
 
-        return pos
+        return posAng
 
     def move(self, neighbors):
         # Find weighted position of neighbors
-        posNeighbors = self.posNeighbors(neighbors)
+        posAngNeighbors = self.posAngNeighbors(neighbors)
 
-        # Random degree
-        ownBeatDist = 10
+        # Random movement
+        ownBeatDist = 9
         x = random.uniform(-ownBeatDist, ownBeatDist)
         y = random.uniform(-ownBeatDist, ownBeatDist)
 
+        # Random turning
+        randTurnMax = math.radians(30)  # in degrees
+        randTurn = random.uniform(-randTurnMax, randTurnMax)
+
+        # Flock movement
+        flockDist = 3
+        xflock = flockDist * math.cos(self.angle)
+        yflock = flockDist * math.sin(self.angle)
+
+        # Weights for updating angles, positions
         ownBeatWeight = 1.40
         followerWeight = 0.60
         weightTot = ownBeatWeight + followerWeight
 
+        # Updating position
         self.position = ((ownBeatWeight * self.position[0] +
-                          followerWeight * posNeighbors[0]) / weightTot + x,
+                          followerWeight * posAngNeighbors[0]) / weightTot +
+                         x + xflock,
                          (ownBeatWeight * self.position[1] +
-                          followerWeight * posNeighbors[1]) / weightTot + y)
+                          followerWeight * posAngNeighbors[1]) / weightTot +
+                         y + yflock)
+
+        # Updating angle
+        self.angle = (ownBeatWeight * self.angle +
+                      followerWeight * posAngNeighbors[2]) / weightTot + \
+            randTurn
 
     def breed(self, neighbors):
         '''
@@ -158,13 +178,22 @@ class Field(object):
 
         # Do Hamsters
         for hamster in self.hamsters:
+            # Representation Characteristics
             color = hex(int(hamster.darkness * 255))
             colorstring = '#' + 3*color.split('x')[-1]
+            outlinecolor = 'red' if hamster.age <= 5 else 'black'
+            outlinewidth = 2 if hamster.age <= 5 else 1
+            scale = 6 + hamster.age // 20
+
             hamster.rep = theCanvas.create_oval(int(hamster.position[0]),
                                                 int(hamster.position[1]),
-                                                int(hamster.position[0] + 6),
-                                                int(hamster.position[1] + 6),
-                                                fill=colorstring)
+                                                int(hamster.position[0] +
+                                                    scale),
+                                                int(hamster.position[1] +
+                                                    scale),
+                                                fill=colorstring,
+                                                outline=outlinecolor,
+                                                width=outlinewidth)
 
         theWindow.update()
 
@@ -187,12 +216,16 @@ class Field(object):
             # Check not out of bounds
             if hammy.position[0] > self.size[0]:
                 hammy.position = (self.size[0], hammy.position[1])
+                hammy.angle = math.radians(180)  # in degrees
             elif hammy.position[0] < 0:
                 hammy.position = (0, hammy.position[1])
+                hammy.angle = math.radians(0)  # in degrees
             if hammy.position[1] > self.size[1]:
                 hammy.position = (hammy.position[0], self.size[1])
+                hammy.angle = math.radians(-90)  # in degrees
             elif hammy.position[1] < 0:
                 hammy.position = (hammy.position[0], 0)
+                hammy.angle = math.radians(90)  # in degrees
 
             # Age them
             hammy.ageStep()
@@ -259,7 +292,7 @@ def runSimulation(trials):
             break
         # To slow down simulation
         if doGraphics:
-            time.sleep(1/30)
+            time.sleep(1/60)
 
     print()
     print('Simulation completed!')
