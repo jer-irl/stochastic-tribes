@@ -5,6 +5,7 @@ import math
 import tkinter as tk
 import tkinter.messagebox
 import threading
+import time
 
 
 class Hamster(object):
@@ -60,6 +61,11 @@ class Hamster(object):
         listNames = [name.strip('\n') for name in open("names.txt", mode='r')]
         return random.choice(listNames)
 
+    def distTo(self, hammy):
+        dist = ((self.position[0] - hammy.position[0]) ** 2 +
+                (self.position[1] - hammy.position[1]) ** 2) ** 0.5
+        return dist
+
 
 class RacistHam(Hamster):
     def posNeighbors(self, neighbors):
@@ -67,44 +73,38 @@ class RacistHam(Hamster):
         if len(neighbors) == 0:
             return self.position
 
-        # (position, 1/weight)
-        colorposX = [(hammy.position[0], (self.darkness - hammy.darkness))
-                     for hammy in neighbors]
-        colorposY = [(hammy.position[1], (self.darkness - hammy.darkness))
-                     for hammy in neighbors]
+        # (x, y, weight difference)
+        colorPos = [(hammy.position[0], hammy.position[1],
+                     1.0 * (1 - (abs(self.darkness - hammy.darkness))) +
+                     1.5 * (self.neighborRadius - self.distTo(hammy)))
+                    for hammy in neighbors]
 
         # Determining sum of weights
-        weightSum = 0
-        for hammy in colorposX:
-            invWeight = max(hammy[1], 0.01)
-            weightSum += 1 / invWeight
+        weightSum = sum([hammy[2] for hammy in colorPos])
 
-        # Calculating X
-        Xpos = 0
-        for hammy in colorposX:
-            Xpos += hammy[0] * hammy[1]
-        Xpos = Xpos / weightSum
+        # Calculate position
+        pos = (sum([hammy[0] * hammy[2] for hammy in colorPos]) / weightSum,
+               sum([hammy[1] * hammy[2] for hammy in colorPos]) / weightSum)
 
-        # Calculating Y
-        Ypos = 0
-        for hammy in colorposY:
-            Ypos += hammy[0] * hammy[1]
-        Ypos = Ypos / weightSum
-
-        return (Xpos, Ypos)
+        return pos
 
     def move(self, neighbors):
         # Find weighted position of neighbors
         posNeighbors = self.posNeighbors(neighbors)
 
         # Random degree
-        x = random.uniform(-10, 10)
-        y = random.uniform(-10, 10)
+        ownBeatDist = 10
+        x = random.uniform(-ownBeatDist, ownBeatDist)
+        y = random.uniform(-ownBeatDist, ownBeatDist)
 
-        self.position = ((1.25 * self.position[0] + 0.75 * posNeighbors[0]) /
-                         2 + x,
-                         (1.25 * self.position[1] + 0.75 * posNeighbors[1]) /
-                         2 + y)
+        ownBeatWeight = 1.40
+        followerWeight = 0.60
+        weightTot = ownBeatWeight + followerWeight
+
+        self.position = ((ownBeatWeight * self.position[0] +
+                          followerWeight * posNeighbors[0]) / weightTot + x,
+                         (ownBeatWeight * self.position[1] +
+                          followerWeight * posNeighbors[1]) / weightTot + y)
 
     def breed(self, neighbors):
         '''
@@ -114,13 +114,12 @@ class RacistHam(Hamster):
         '''
         random.shuffle(neighbors)
         for hammy in neighbors:
-            avgDarkness = (self.darkness + hammy.darkness) / 2
-            avgAge = max([(self.age + hammy.age)/2, 1])
-            prob = 1 - (((self.darkness - hammy.darkness) ** 2) / avgDarkness) \
-                - (((self.age - hammy.age) ** 2) / avgAge)
+            ageTest = abs(self.age - hammy.age) <= 30
+            colorTest = abs(self.darkness - hammy.darkness) <= 0.4
 
             # Breed!
-            if random.random() < prob and len(neighbors) < 10 and not self.bred:
+            if random.random() < 0.45 and ageTest and colorTest \
+               and len(neighbors) < 10 and not self.bred:
                 babyPos = self.getBabyPos(hammy)
                 darkness = (self.darkness + hammy.darkness) / 2
                 neighborRadius = self.neighborRadius
@@ -218,7 +217,7 @@ def getInitialHamsters(number, size, HamClass):
     while len(hamsters) < number:
         pos = (random.uniform(0, size[0]), random.uniform(0, size[1]))
         darkness = random.random()
-        neighborRadius = 40
+        neighborRadius = 30
         hamsters.append(HamClass(pos, darkness, neighborRadius))
 
     return hamsters
@@ -258,6 +257,10 @@ def runSimulation(trials):
         theField.updateField(i)
         if len(theField.hamsters) == 0:
             break
+        # To slow down simulation
+        if doGraphics:
+            time.sleep(1/30)
+
     print()
     print('Simulation completed!')
     print('After',  i + 1,
@@ -278,7 +281,7 @@ def main():
     doGraphics = True if isYes(resp) else False
 
     # Values
-    trials = 1000
+    trials = 500
     size = (600, 500)
     numHamsters = 40
     initHamsters = getInitialHamsters(numHamsters, size, RacistHam)
