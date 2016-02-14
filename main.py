@@ -3,6 +3,7 @@
 import random
 import math
 import tkinter as tk
+import tkinter.messagebox
 import threading
 
 
@@ -35,7 +36,7 @@ class Hamster(object):
         prob = (k / l) * ((t / l) ** (k - 1)) * math.exp(-((t / l) ** k))
 
         result = random.random()
-        if result < prob:
+        if result < prob or t > 110:
             print(self.name, "died at the ripe old age of", self.age)
             return True
         elif result >= prob:
@@ -66,17 +67,17 @@ class RacistHam(Hamster):
         if len(neighbors) == 0:
             return self.position
 
-        colorposX = [(hammy.position[0], (self.darkness - hammy.darkness) ** 2)
+        # (position, 1/weight)
+        colorposX = [(hammy.position[0], (self.darkness - hammy.darkness))
                      for hammy in neighbors]
-        colorposY = [(hammy.position[1], (self. darkness - hammy.darkness) ** 2)
+        colorposY = [(hammy.position[1], (self.darkness - hammy.darkness))
                      for hammy in neighbors]
 
         # Determining sum of weights
         weightSum = 0
         for hammy in colorposX:
-            weightSum += hammy[1]
-        if weightSum < 0.01:
-            weightSum = 0.01
+            invWeight = max(hammy[1], 0.01)
+            weightSum += 1 / invWeight
 
         # Calculating X
         Xpos = 0
@@ -97,11 +98,13 @@ class RacistHam(Hamster):
         posNeighbors = self.posNeighbors(neighbors)
 
         # Random degree
-        x = random.uniform(-5, 5)
-        y = random.uniform(-5, 5)
+        x = random.uniform(-10, 10)
+        y = random.uniform(-10, 10)
 
-        self.position = ((self.position[0] + posNeighbors[0]) / 2 + x,
-                         (self.position[1] + posNeighbors[1]) / 2 + y)
+        self.position = ((1.25 * self.position[0] + 0.75 * posNeighbors[0]) /
+                         2 + x,
+                         (1.25 * self.position[1] + 0.75 * posNeighbors[1]) /
+                         2 + y)
 
     def breed(self, neighbors):
         '''
@@ -117,7 +120,7 @@ class RacistHam(Hamster):
                 - (((self.age - hammy.age) ** 2) / avgAge)
 
             # Breed!
-            if random.random() < prob and not self.bred:
+            if random.random() < prob and len(neighbors) < 10 and not self.bred:
                 babyPos = self.getBabyPos(hammy)
                 darkness = (self.darkness + hammy.darkness) / 2
                 neighborRadius = self.neighborRadius
@@ -153,29 +156,23 @@ class Field(object):
     def showHamsters(self):
         # Clear Window
         theCanvas.delete('all')
-        '''
-        theCanvas = tk.Canvas(self.theWindow, width=self.size[0],
-                                   height=self.size[1])
-                                   '''
 
         # Do Hamsters
         for hamster in self.hamsters:
             color = hex(int(hamster.darkness * 255))
             colorstring = '#' + 3*color.split('x')[-1]
-            print(colorstring)
             hamster.rep = theCanvas.create_oval(int(hamster.position[0]),
                                                 int(hamster.position[1]),
-                                                int(hamster.position[0] + 3),
-                                                int(hamster.position[1] + 3),
-                                                color=colorstring)
-# fill=colorstring)
+                                                int(hamster.position[0] + 6),
+                                                int(hamster.position[1] + 6),
+                                                fill=colorstring)
 
         theWindow.update()
 
     def updateField(self, i):
-        # Kill the oldies
-        filter(lambda hammy: not hammy.willDie(), self.hamsters)
-        # RIP
+        # Kill the Oldies
+        self.hamsters = [hammy for hammy in self.hamsters
+                         if not hammy.willDie()]
 
         for hammy in self.hamsters:
             neighbors = self.getNeighbors(hammy)
@@ -221,7 +218,7 @@ def getInitialHamsters(number, size, HamClass):
     while len(hamsters) < number:
         pos = (random.uniform(0, size[0]), random.uniform(0, size[1]))
         darkness = random.random()
-        neighborRadius = 10
+        neighborRadius = 40
         hamsters.append(HamClass(pos, darkness, neighborRadius))
 
     return hamsters
@@ -259,18 +256,32 @@ def welcome():
 def runSimulation(trials):
     for i in range(trials):
         theField.updateField(i)
+        if len(theField.hamsters) == 0:
+            break
+    print()
+    print('Simulation completed!')
+    print('After',  i + 1,
+          'trials, there were', len(theField.hamsters), 'alive.')
+    print()
+    print('Goodbye!')
+    if doGraphics:
+        if tkinter.messagebox.showinfo(title='Quit?',
+                                       message='The simulation has ended'):
+            theWindow.destroy()
 
 
 def main():
     # Welcome
     welcome()
     resp = input('Would you like a graphical simulation? (y/n): ')
+    global doGraphics
     doGraphics = True if isYes(resp) else False
 
     # Values
-    trials = 100
+    trials = 1000
     size = (600, 500)
-    initHamsters = getInitialHamsters(10, size, RacistHam)
+    numHamsters = 40
+    initHamsters = getInitialHamsters(numHamsters, size, RacistHam)
     global theField
     theField = Field(initHamsters, size, doGraphics)
 
