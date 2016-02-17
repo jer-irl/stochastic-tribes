@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Written for Python 3.4.3
 
 import random
@@ -6,6 +8,7 @@ import tkinter as tk
 import tkinter.messagebox
 import threading
 import time
+import argparse
 
 
 class Hamster(object):
@@ -20,7 +23,7 @@ class Hamster(object):
         self.neighborRadius = neighborRadius
         self.age = 0
         self.bred = True
-        self.name = self.getName()
+        self.name = self.makeName()
         self.angle = random.uniform(0, 2 * math.pi)
 
     def posAngNeighbors(self, neighbors):
@@ -38,7 +41,7 @@ class Hamster(object):
         prob = (k / l) * ((t / l) ** (k - 1)) * math.exp(-((t / l) ** k))
 
         result = random.random()
-        if result < prob or t > 110:
+        if result < prob or t > l + 10:
             print(self.name, "died at the ripe old age of", self.age)
             return True
         elif result >= prob:
@@ -58,7 +61,7 @@ class Hamster(object):
         babyY = (self.position[1] + wife.position[1]) / 2
         return (babyX, babyY)
 
-    def getName(self):
+    def makeName(self):
         listNames = [name.strip('\n') for name in open("names.txt", mode='r')]
         return random.choice(listNames)
 
@@ -245,12 +248,11 @@ class Field(object):
         print()
 
 
-def getInitialHamsters(number, size, HamClass):
+def getInitialHamsters(number, size, neighborRadius, HamClass):
     hamsters = []
     while len(hamsters) < number:
         pos = (random.uniform(0, size[0]), random.uniform(0, size[1]))
         darkness = random.random()
-        neighborRadius = 30
         hamsters.append(HamClass(pos, darkness, neighborRadius))
 
     return hamsters
@@ -285,6 +287,25 @@ def welcome():
     print()
 
 
+def makeSettings():
+    # Get input settings
+    parser = argparse.ArgumentParser(prog='simulator')
+    parser.add_argument('-t', '--trials', default=500, type=int, dest='trials',
+                        help='Number of trials to perform')
+    parser.add_argument('-w', '--width', default=600, type=int, dest='width',
+                        help='Width of the window')
+    parser.add_argument('-v', '--vertical', default=500, type=int,
+                        dest='height', help='Height of the window')
+    parser.add_argument('-n', '--number', default=40, type=int,
+                        dest='initNumHamsters', help='Number of hamsters to \
+                        begin with')
+    parser.add_argument('-r', '--radius', default=30, type=int,
+                        dest='neighborRadius', help='Radius for hamsters to \
+                        consider as neighbors')
+
+    return vars(parser.parse_args())
+
+
 def runSimulation(trials):
     for i in range(trials):
         theField.updateField(i)
@@ -307,30 +328,37 @@ def runSimulation(trials):
 
 
 def main():
+    # Parse Command-line
+    settings = makeSettings()
+
     # Welcome
     welcome()
+
+    # Do Graphics?
     resp = input('Would you like a graphical simulation? (y/n): ')
     global doGraphics
     doGraphics = True if isYes(resp) else False
 
-    # Values
-    trials = 500
-    size = (600, 500)
-    numHamsters = 40
-    initHamsters = getInitialHamsters(numHamsters, size, RacistHam)
+    # Initialize Objects
+    initHamsters = getInitialHamsters(settings['initNumHamsters'],
+                                      (settings['width'], settings['height']),
+                                      settings['neighborRadius'],
+                                      RacistHam)
     global theField
-    theField = Field(initHamsters, size, doGraphics)
+    theField = Field(initHamsters, (settings['width'], settings['height']),
+                     doGraphics)
 
     # Initialize Graphics
     if doGraphics:
         try:
             global theWindow
             theWindow = tk.Tk()
-            geom = str(size[0]) + 'x' + str(size[1])
+            geom = str(settings['width']) + 'x' + str(settings['height'])
             theWindow.geometry(geom)
             theWindow.title('Simulation')
             global theCanvas
-            theCanvas = tk.Canvas(theWindow, width=size[0], height=size[1])
+            theCanvas = tk.Canvas(theWindow, width=settings['width'],
+                                  height=settings['height'])
             theCanvas.pack()
 
         except:
@@ -342,7 +370,7 @@ def main():
         print('No graphics')
 
     # Run Loop
-    simThread = threading.Thread(target=runSimulation(trials))
+    simThread = threading.Thread(target=runSimulation(settings['trials']))
     simThread.start()
 
     if doGraphics:
