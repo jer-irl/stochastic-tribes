@@ -42,7 +42,7 @@ class Hamster(object):
 
         result = random.random()
         if result < prob or t > l + 10:
-            print(self.name, "died at the ripe old age of", self.age)
+            print(self.name, "tragically died at the ripe old age of", self.age)
             return True
         elif result >= prob:
             return False
